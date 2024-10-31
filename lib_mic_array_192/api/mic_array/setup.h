@@ -102,7 +102,7 @@ void mic_array_resources_configure(
 MA_C_API
 void mic_array_pdm_clock_start(
     pdm_rx_resources_t* pdm_res,
-    size_t divide);
+    int divide);
 
 /**
  * @brief Compute clock divider for PDM clock.
