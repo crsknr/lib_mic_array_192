@@ -47,8 +47,18 @@ void mic_array_resources_configure(
 
 
 void mic_array_pdm_clock_start(
-    pdm_rx_resources_t* pdm_res)
+    pdm_rx_resources_t* pdm_res,
+    int divide)
 {
+  // Start the clock with half the speed
+  clock_set_divide(pdm_res->clock_a, divide);
+  clock_start(pdm_res->clock_a);
+
+  // Stop and set to the normal speed
+  delay_milliseconds(50);
+  clock_stop(pdm_res->clock_a);
+  clock_set_divide(pdm_res->clock_a, divide/2);
+
   if( pdm_res->clock_b != 0 ) {
     uint32_t tmp;
     

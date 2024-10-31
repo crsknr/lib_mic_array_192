@@ -97,10 +97,12 @@ void mic_array_resources_configure(
  * dropped.
  * 
  * @param pdm_res   The hardware resources used by the mic array.
+ * @param divide    The divider to generate the PDM clock from the master clock.
  */
 MA_C_API
 void mic_array_pdm_clock_start(
-    pdm_rx_resources_t* pdm_res);
+    pdm_rx_resources_t* pdm_res,
+    size_t divide);
 
 /**
  * @brief Compute clock divider for PDM clock.
