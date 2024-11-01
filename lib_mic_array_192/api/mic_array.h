@@ -12,6 +12,7 @@
 
 #ifdef __cplusplus
 # include "mic_array/cpp/Decimator.hpp"
+# include "mic_array/cpp/Decimator192.hpp"
 # include "mic_array/cpp/MicArray.hpp"
 # include "mic_array/cpp/OutputHandler.hpp"
 # include "mic_array/cpp/PdmRx.hpp"
