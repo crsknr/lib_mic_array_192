@@ -1,27 +1,35 @@
 
 :orphan:
 
-###########################################
-lib_mic_array: PDM microphone array library
-###########################################
+###############################################################
+lib_mic_array_192: Modified PDM microphone array library for 192kHz
+###############################################################
 
-:vendor: XMOS
-:version: 5.5.0
+:vendor: Modified from XMOS original
+:version: 5.5.0-192khz-mod
 :scope: General Use
-:description: PDM microphone array library
+:description: PDM microphone array library with 192kHz support
 :category: General Purpose
-:keywords: PDM, microphone
+:keywords: PDM, microphone, 192kHz
 :devices: xcore.ai
 
 *******
 Summary
 *******
 
-The XMOS microphone array library is designed to allow interfacing to PDM microphones coupled with efficient decimation to user configurable output
-sample rates.
+This is a modified version of the XMOS microphone array library, extended to support 192kHz sample rates.
+The original XMOS microphone array library is designed to allow interfacing to PDM microphones coupled with efficient decimation to user configurable output sample rates.
 
-This library is only available for XS3 devices due to requiring the XS3 vector unit. It will build without errors for XS2 targets however no mic_array APIs will be available.
-Please see versions prior to v5.0.0 for XS2 support.
+**Modifications by Christoph Kiener:**
+- Added 192kHz output sample rate support
+- Implemented OneStageDecimator192 class for 16x decimation (3.072 MHz PDM → 192 kHz)
+- Custom filter coefficients optimized for 192kHz operation
+
+**Original XMOS Library:**
+Based on lib_mic_array v5.5.0 from XMOS Limited.
+Original repository: https://github.com/xmos/lib_mic_array
+
+This library is only available for XS3 devices due to requiring the XS3 vector unit.
 
 ********
 Features
@@ -29,6 +37,7 @@ Features
 
 The microphone array library has the following features:
 
+**Original Features:**
   - 48, 32, 16 kHz output sample rates by default (3.072 MHz PDM clock)
   - 44.1, 29.4, 14.7 kHz output samples using 2.8224 MHz PDM clock
   - Other sample rates possible using custom decimation filter
@@ -40,6 +49,11 @@ The microphone array library has the following features:
   - DC offset removal
   - Extensible C++ design
 
+**Additional 192kHz Features:**
+  - 192 kHz output sample rate support (3.072 MHz PDM clock with 16x decimation)
+  - OneStageDecimator192 implementation for optimized 192kHz processing (`lib_mic_array_192/api/mic_array/cpp/Decimator192.hpp`)
+  - Custom Kaiser window filter coefficients (240 taps, fc=80kHz, a_stop=-44dB)
+  - Add division parameter to `mic_array_pdm_clock_start` to allow for starting up MEMS mics with a lower PDM clock
 
 ************
 Known issues
@@ -53,7 +67,20 @@ Also see https://github.com/xmos/lib_mic_array/issues.
 Development repo
 ****************
 
+**Modified Version:**
+  * This repository (lib_mic_array_192)
+
+**Original XMOS Repository:**  
   * `lib_mic_array <https://www.github.com/xmos/lib_mic_array>`_
+
+******************
+Attribution & License
+******************
+
+This work is based on lib_mic_array v5.5.0 by XMOS Limited and is subject to the XMOS Public Licence Version 1.
+The original work is copyright XMOS Limited. Modifications for 192kHz support by Christoph Kiener.
+
+All modifications comply with Section 2.2 of the XMOS Public Licence regarding derivatives.
 
 **************
 Required tools

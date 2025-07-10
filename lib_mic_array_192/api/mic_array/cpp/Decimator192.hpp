@@ -1,23 +1,19 @@
-/******************************************************************************
- * File:        Decimator192.hpp
- * Author:      Christoph Kiener <christoph.kiener@live.de>
- * Created:     September 13, 2024
- * Version:     1.0
- * 
- * Description:
- *    This file implements the core functionality for managing data structures
- *    in the XYZ project. It includes implementations for handling linked lists
- *    and tree structures efficiently.
+/**
+ * @file Decimator192.hpp
+ * @brief Two One Stage Decimators for 192kHz sample rate PDM support.
+ * This design implements a decimation factor of 16 to achieve 192kHz sample rate
+ * from the 3.072MHz PDM sample rate. As the PdmRx implementation captures the
+ * incoming PDM stream in blocks of 32 samples, this decimator filters each
+ * 32 sample block twice. Once at the beginning with a padding of 16 samples at
+ * the end, and with a padding of 16 samples at the beginning. So each call for
+ * OneStageDecimator192:ProcessBlock() will produce two output samples.
  *
- * License:
- *    This code is licensed under the MIT License.
- *    See LICENSE.txt for more details.
- *
- * Change Log:
- *    v1.0 (Sep 13, 2024) - Initial implementation.
- *
- * Copyright (c) 2024 Christoph Kiener. All rights reserved.
- ******************************************************************************/
+ * @author Christoph Kiener
+ * @copyright This derivative work is subject to XMOS Public Licence Version 1
+ * This file is a derivative work based on XMOS lib_mic_array library.
+ * Original work Copyright (c) XMOS Limited
+ * Modifications for 192kHz support by Christoph Kiener
+ */
 
 #pragma once
 
@@ -28,52 +24,11 @@
 #include "xmath/filter.h"
 #include "mic_array/etc/fir_1x16_bit.h"
 
-
 #define S1_TAP_COUNT 256
-#define S1_WORDS (S1_TAP_COUNT)/2
-#define S2_TAP_COUNT 65
+#define S1_WORDS (S1_TAP_COUNT) / 2
 
-// // taps=256, fc=85kHz, window=("kaiser", 2.1)
-// static const uint32_t WORD_ALIGNED s1_fir[S1_WORDS] = {
-//   0xC135AA3A, 0x1BFCC2BB, 0x163C9E11, 0x35F94900, 0x00929FAC, 0x88793C68, 0xDD433FD8, 0x5C55AC83, 
-//   0x36564C9A, 0x2FD09BD9, 0x583B3AE3, 0x7B89AAE0, 0x075591DE, 0xC75CDC1A, 0x9BD90BF4, 0x59326A6C, 
-//   0xEBDB2CEF, 0x6CF1087A, 0x13817245, 0x5D01E7AE, 0x75E780BA, 0xA24E81C8, 0x5E108F36, 0xF734DBD7, 
-//   0x433870AD, 0xD3C662F4, 0xCCD5672D, 0xCFA93A46, 0x625C95F3, 0xB4E6AB33, 0x2F4663CB, 0xB50E1CC2, 
-//   0x1C97A70E, 0xEB79A081, 0x5991B13C, 0x0AC80EF2, 0x4F701350, 0x3C8D899A, 0x81059ED7, 0x70E5E938, 
-//   0xBFA9A829, 0x3F8C37F8, 0xD6F20581, 0x5D0B0770, 0x0EE0D0BA, 0x81A04F6B, 0x1FEC31FC, 0x941595FD, 
-//   0x7F90DA93, 0x88070903, 0x169B2C8C, 0xBDF6E2A2, 0x45476FBD, 0x3134D968, 0xC090E011, 0xC95B09FE, 
-//   0xAADFACD7, 0xD80210A8, 0x5F9CAF46, 0x99FEDFC0, 0x03FB7F99, 0x62F539FA, 0x1508401B, 0xEB35FB55, 
-//   0xCCE065B0, 0x12ABF532, 0xDA607228, 0xC2CD4132, 0x4C82B343, 0x144E065B, 0x4CAFD548, 0x0DA60733, 
-//   0x0F001C70, 0x1CCC0C96, 0x2355414F, 0x174B95E0, 0x07A9D2E8, 0xF282AAC4, 0x69303338, 0x0E3800F0, 
-//   0x0FFFFC0F, 0xE0F0038E, 0x039980DA, 0xB067E614, 0x2867E60D, 0x5B0199C0, 0x71C00F07, 0xF03FFFF0, 
-//   0x0FFFFC00, 0x00FFFF81, 0xFC1E0039, 0x8F8AAD58, 0x1AB551F1, 0x9C00783F, 0x81FFFF00, 0x003FFFF0, 
-//   0x0FFFFC00, 0x00FFFF80, 0x001FFFF8, 0x7FF33660, 0x066CCFFE, 0x1FFFF800, 0x01FFFF00, 0x003FFFF0, 
-//   0x0FFFFC00, 0x00FFFF80, 0x001FFFF8, 0x0003C780, 0x01E3C000, 0x1FFFF800, 0x01FFFF00, 0x003FFFF0, 
-//   0x0FFFFC00, 0x00FFFF80, 0x001FFFF8, 0x0003F800, 0x001FC000, 0x1FFFF800, 0x01FFFF00, 0x003FFFF0, 
-//   0xF00003FF, 0xFF00007F, 0xFFE00007, 0xFFFC0000, 0x00003FFF, 0xE00007FF, 0xFE0000FF, 0xFFC0000F,
-// };
-
-// // taps=256, fc=80kHz, window=("kaiser", 4.0), a_stop=-44dB
-// static const uint32_t WORD_ALIGNED s1_fir[S1_WORDS] = {
-//   0xF4ADF32B, 0x976894FA, 0x1DCF49F8, 0x64F552CC, 0x334AAF26, 0x1F92F3B8, 0x5F2916E9, 0xD4CFB52F, 
-//   0xCE6116A3, 0x1CFF6E4E, 0x2646166E, 0x0CA682BE, 0x7D416530, 0x76686264, 0x7276FF38, 0xC5688673, 
-//   0x25E01063, 0x084AD082, 0x371E521D, 0xA81FCE0C, 0x3073F815, 0xB84A78EC, 0x410B5210, 0xC60807A4, 
-//   0xBF2DE3E3, 0x6C19F2D9, 0x056C944F, 0x8F10DFCC, 0x33FB08F1, 0xF22936A0, 0x9B4F9836, 0xC7C7B4FD, 
-//   0x68A6072F, 0xF247EBC1, 0xE3CFEDD9, 0x0B520122, 0x44804AD0, 0x9BB7F3C7, 0x83D7E24F, 0xF4E06516, 
-//   0x4F88053D, 0x0159935A, 0x16D5308D, 0xA80F04F2, 0x4F20F015, 0xB10CAB68, 0x5AC99A80, 0xBCA011F2, 
-//   0x70655334, 0xFF1A5C7F, 0x3F607B7A, 0xC48D6B80, 0x01D6B123, 0x5EDE06FC, 0xFE3A58FF, 0x2CCAA60E, 
-//   0x801CCF39, 0x55996068, 0x7AD76487, 0x6D07F1D4, 0x2B8FE0B6, 0xE126EB5E, 0x160699AA, 0x9CF33801, 
-//   0xFFFC3F3E, 0x6618D527, 0xA9CD97AA, 0xFF9BAA7E, 0x7E55D9FF, 0x55E9B395, 0xE4AB1866, 0x7CFC3FFF, 
-//   0xFFFC00C0, 0x7818331F, 0xCD69F2CC, 0xA16833DC, 0x3BCC1685, 0x334F96B3, 0xF8CC181E, 0x03003FFF, 
-//   0xFFFC0000, 0x7FE7F0FF, 0xF18E0E5A, 0x61A7C3C8, 0x13C3E586, 0x5A70718F, 0xFF0FE7FE, 0x00003FFF, 
-//   0xFFFC0000, 0x7FFFF000, 0x01F001C6, 0x1E355690, 0x096AAC78, 0x63800F80, 0x000FFFFE, 0x00003FFF, 
-//   0xFFFC0000, 0x7FFFF000, 0x01FFFFC1, 0xFFC664E0, 0x072663FF, 0x83FFFF80, 0x000FFFFE, 0x00003FFF, 
-//   0xFFFC0000, 0x7FFFF000, 0x01FFFFC0, 0x00078700, 0x00E1E000, 0x03FFFF80, 0x000FFFFE, 0x00003FFF, 
-//   0xFFFC0000, 0x7FFFF000, 0x01FFFFC0, 0x0007F800, 0x001FE000, 0x03FFFF80, 0x000FFFFE, 0x00003FFF, 
-//   0x0003FFFF, 0x80000FFF, 0xFE00003F, 0xFFF80000, 0x00001FFF, 0xFC00007F, 0xFFF00001, 0xFFFFC000, 
-// };
-
-// taps=256, fc=80kHz, window=("kaiser", 4.0), a_stop=-44dB
+// taps=240, fc=80kHz, window=("kaiser", 4.0), a_stop=-44dB, 16 samples padding at the end
+// clang-format off
 static const uint32_t WORD_ALIGNED s1_fir_zero_after[S1_WORDS] = {
   0xFFFFDA39, 0xBFF03D14, 0x538A5CDE, 0xCE092678, 0xAA551E64, 0x90737B3A, 0x51CA28BC, 0x0FFD9C5B, 
   0xFFFF0B0A, 0x66F123BA, 0x52CDEEBC, 0x9ABFF4AE, 0xF66F752F, 0xFD593D77, 0xB34A5DC4, 0x8F6650D0, 
@@ -92,8 +47,10 @@ static const uint32_t WORD_ALIGNED s1_fir_zero_after[S1_WORDS] = {
   0xFFFFFC00, 0x007FFFF0, 0x0001FFFF, 0xC00007F8, 0x00001FE0, 0x0003FFFF, 0x80000FFF, 0xFE00003F, 
   0x000003FF, 0xFF80000F, 0xFFFE0000, 0x3FFFF800, 0x0000001F, 0xFFFC0000, 0x7FFFF000, 0x01FFFFC0,
 };
+// clang-format on
 
-// taps=256, fc=80kHz, window=("kaiser", 4.0), a_stop=-44dB
+// taps=240, fc=80kHz, window=("kaiser", 4.0), a_stop=-44dB, 16 samples padding at the beginning
+// clang-format off
 static const uint32_t WORD_ALIGNED s1_fir_zero_before[S1_WORDS] = {
   0xDA39BFF0, 0x3D14538A, 0x5CDECE09, 0x2678AA55, 0x1E649073, 0x7B3A51CA, 0x28BC0FFD, 0x9C5BFFFF, 
   0x0B0A66F1, 0x23BA52CD, 0xEEBC9ABF, 0xF4AEF66F, 0x752FFD59, 0x3D77B34A, 0x5DC48F66, 0x50D0FFFF, 
@@ -112,180 +69,86 @@ static const uint32_t WORD_ALIGNED s1_fir_zero_before[S1_WORDS] = {
   0xFC00007F, 0xFFF00001, 0xFFFFC000, 0x07F80000, 0x1FE00003, 0xFFFF8000, 0x0FFFFE00, 0x003FFFFF, 
   0x03FFFF80, 0x000FFFFE, 0x00003FFF, 0xF8000000, 0x001FFFFC, 0x00007FFF, 0xF00001FF, 0xFFC00000, 
 };
+// clang-format on
 
-
-// // taps=232, fc=80kHz, window=("kaiser", 3.5), a_stop=-39dB
-// static const uint32_t WORD_ALIGNED s1_24z_fir_0z[S1_WORDS] = {
-//   0x7DD06D54, 0x30A11906, 0x938AA454, 0xAED8811B, 0x752A2551, 0xC9609885, 0x0C2AB60B, 0xBEFFFFFF, 
-//   0x5272ADF5, 0x29BCA02D, 0xA1950F6C, 0x9136246C, 0x8936F0A9, 0x85B4053D, 0x94AFB54E, 0x4AFFFFFF, 
-//   0x7F6B2359, 0x34BDD543, 0x18158A6E, 0x0CF700EF, 0x307651A8, 0x18C2ABBD, 0x2C9AC4D6, 0xFEFFFFFF, 
-//   0xF5468CF7, 0x3ACBBF0F, 0xADBD3793, 0x72140028, 0x4EC9ECBD, 0xB5F0FDD3, 0x5CEF3162, 0xAFFFFFFF, 
-//   0xD9CD542B, 0x3D5FE2AB, 0xBE7CA84B, 0x2DFAE75F, 0xB4D2153E, 0x7DD547FA, 0xBCD42AB3, 0x9BFFFFFF, 
-//   0x9E6113EE, 0xA769BEF9, 0xECC8F5CA, 0xF04F24F2, 0x0F53AF13, 0x379F7D96, 0xE577C886, 0x79FFFFFF, 
-//   0x4ADE4FE4, 0x7D8C0D72, 0x54B78902, 0xD6B8001D, 0x6B4091ED, 0x2A4EB031, 0xBE27F27B, 0x52FFFFFF, 
-//   0xC63F9548, 0x160E8BA9, 0x754877D2, 0x7F1D42B8, 0xFE4BEE12, 0xAE95D170, 0x6812A9FC, 0x63FFFFFF, 
-//   0xC1FFE670, 0x0D5A7298, 0xDB7AAEFB, 0xBAA7E7E5, 0x5DDF755E, 0xDB194E5A, 0xB00E67FF, 0x83FFFFFF, 
-//   0xC0000780, 0x0339FCD2, 0x9F2CCA14, 0x833DC3BC, 0xC1285334, 0xF94B3F9C, 0xC001E000, 0x03FFFFFF, 
-//   0xC00007FF, 0xFF07FF1C, 0xE0E5A61A, 0x7C3C813C, 0x3E5865A7, 0x0738FFE0, 0xFFFFE000, 0x03FFFFFF, 
-//   0xC00007FF, 0xFF00001F, 0x001C61E3, 0x55690096, 0xAAC78638, 0x00F80000, 0xFFFFE000, 0x03FFFFFF, 
-//   0xC00007FF, 0xFF00001F, 0xFFFC1FFC, 0x664E0072, 0x663FF83F, 0xFFF80000, 0xFFFFE000, 0x03FFFFFF, 
-//   0xC00007FF, 0xFF00001F, 0xFFFC0000, 0x7870000E, 0x1E00003F, 0xFFF80000, 0xFFFFE000, 0x03FFFFFF, 
-//   0xC00007FF, 0xFF00001F, 0xFFFC0000, 0x7F800001, 0xFE00003F, 0xFFF80000, 0xFFFFE000, 0x03FFFFFF, 
-//   0x3FFFF800, 0x00FFFFE0, 0x0003FFFF, 0x80000000, 0x01FFFFC0, 0x0007FFFF, 0x00001FFF, 0xFC000000,
-// };
-
-// static const uint32_t WORD_ALIGNED s1_16z_fir_8z[S1_WORDS] = {
-//   0xFF7DD06D, 0x5430A119, 0x06938AA4, 0x54AED881, 0x1B752A25, 0x51C96098, 0x850C2AB6, 0x0BBEFFFF, 
-//   0xFF5272AD, 0xF529BCA0, 0x2DA1950F, 0x6C913624, 0x6C8936F0, 0xA985B405, 0x3D94AFB5, 0x4E4AFFFF, 
-//   0xFF7F6B23, 0x5934BDD5, 0x4318158A, 0x6E0CF700, 0xEF307651, 0xA818C2AB, 0xBD2C9AC4, 0xD6FEFFFF, 
-//   0xFFF5468C, 0xF73ACBBF, 0x0FADBD37, 0x93721400, 0x284EC9EC, 0xBDB5F0FD, 0xD35CEF31, 0x62AFFFFF, 
-//   0xFFD9CD54, 0x2B3D5FE2, 0xABBE7CA8, 0x4B2DFAE7, 0x5FB4D215, 0x3E7DD547, 0xFABCD42A, 0xB39BFFFF, 
-//   0xFF9E6113, 0xEEA769BE, 0xF9ECC8F5, 0xCAF04F24, 0xF20F53AF, 0x13379F7D, 0x96E577C8, 0x8679FFFF, 
-//   0xFF4ADE4F, 0xE47D8C0D, 0x7254B789, 0x02D6B800, 0x1D6B4091, 0xED2A4EB0, 0x31BE27F2, 0x7B52FFFF, 
-//   0xFFC63F95, 0x48160E8B, 0xA9754877, 0xD27F1D42, 0xB8FE4BEE, 0x12AE95D1, 0x706812A9, 0xFC63FFFF, 
-//   0xFFC1FFE6, 0x700D5A72, 0x98DB7AAE, 0xFBBAA7E7, 0xE55DDF75, 0x5EDB194E, 0x5AB00E67, 0xFF83FFFF, 
-//   0xFFC00007, 0x800339FC, 0xD29F2CCA, 0x14833DC3, 0xBCC12853, 0x34F94B3F, 0x9CC001E0, 0x0003FFFF, 
-//   0xFFC00007, 0xFFFF07FF, 0x1CE0E5A6, 0x1A7C3C81, 0x3C3E5865, 0xA70738FF, 0xE0FFFFE0, 0x0003FFFF, 
-//   0xFFC00007, 0xFFFF0000, 0x1F001C61, 0xE3556900, 0x96AAC786, 0x3800F800, 0x00FFFFE0, 0x0003FFFF, 
-//   0xFFC00007, 0xFFFF0000, 0x1FFFFC1F, 0xFC664E00, 0x72663FF8, 0x3FFFF800, 0x00FFFFE0, 0x0003FFFF, 
-//   0xFFC00007, 0xFFFF0000, 0x1FFFFC00, 0x00787000, 0x0E1E0000, 0x3FFFF800, 0x00FFFFE0, 0x0003FFFF, 
-//   0xFFC00007, 0xFFFF0000, 0x1FFFFC00, 0x007F8000, 0x01FE0000, 0x3FFFF800, 0x00FFFFE0, 0x0003FFFF, 
-//   0x003FFFF8, 0x0000FFFF, 0xE00003FF, 0xFF800000, 0x0001FFFF, 0xC00007FF, 0xFF00001F, 0xFFFC0000,
-// };
-
-// static const uint32_t WORD_ALIGNED s1_8z_fir_16z[S1_WORDS] = {
-//   0xFFFF7DD0, 0x6D5430A1, 0x1906938A, 0xA454AED8, 0x811B752A, 0x2551C960, 0x98850C2A, 0xB60BBEFF, 
-//   0xFFFF5272, 0xADF529BC, 0xA02DA195, 0x0F6C9136, 0x246C8936, 0xF0A985B4, 0x053D94AF, 0xB54E4AFF, 
-//   0xFFFF7F6B, 0x235934BD, 0xD5431815, 0x8A6E0CF7, 0x00EF3076, 0x51A818C2, 0xABBD2C9A, 0xC4D6FEFF, 
-//   0xFFFFF546, 0x8CF73ACB, 0xBF0FADBD, 0x37937214, 0x00284EC9, 0xECBDB5F0, 0xFDD35CEF, 0x3162AFFF, 
-//   0xFFFFD9CD, 0x542B3D5F, 0xE2ABBE7C, 0xA84B2DFA, 0xE75FB4D2, 0x153E7DD5, 0x47FABCD4, 0x2AB39BFF, 
-//   0xFFFF9E61, 0x13EEA769, 0xBEF9ECC8, 0xF5CAF04F, 0x24F20F53, 0xAF13379F, 0x7D96E577, 0xC88679FF, 
-//   0xFFFF4ADE, 0x4FE47D8C, 0x0D7254B7, 0x8902D6B8, 0x001D6B40, 0x91ED2A4E, 0xB031BE27, 0xF27B52FF, 
-//   0xFFFFC63F, 0x9548160E, 0x8BA97548, 0x77D27F1D, 0x42B8FE4B, 0xEE12AE95, 0xD1706812, 0xA9FC63FF, 
-//   0xFFFFC1FF, 0xE6700D5A, 0x7298DB7A, 0xAEFBBAA7, 0xE7E55DDF, 0x755EDB19, 0x4E5AB00E, 0x67FF83FF, 
-//   0xFFFFC000, 0x07800339, 0xFCD29F2C, 0xCA14833D, 0xC3BCC128, 0x5334F94B, 0x3F9CC001, 0xE00003FF, 
-//   0xFFFFC000, 0x07FFFF07, 0xFF1CE0E5, 0xA61A7C3C, 0x813C3E58, 0x65A70738, 0xFFE0FFFF, 0xE00003FF, 
-//   0xFFFFC000, 0x07FFFF00, 0x001F001C, 0x61E35569, 0x0096AAC7, 0x863800F8, 0x0000FFFF, 0xE00003FF, 
-//   0xFFFFC000, 0x07FFFF00, 0x001FFFFC, 0x1FFC664E, 0x0072663F, 0xF83FFFF8, 0x0000FFFF, 0xE00003FF, 
-//   0xFFFFC000, 0x07FFFF00, 0x001FFFFC, 0x00007870, 0x000E1E00, 0x003FFFF8, 0x0000FFFF, 0xE00003FF, 
-//   0xFFFFC000, 0x07FFFF00, 0x001FFFFC, 0x00007F80, 0x0001FE00, 0x003FFFF8, 0x0000FFFF, 0xE00003FF, 
-//   0x00003FFF, 0xF80000FF, 0xFFE00003, 0xFFFF8000, 0x000001FF, 0xFFC00007, 0xFFFF0000, 0x1FFFFC00, 
-// };
-
-// static const uint32_t WORD_ALIGNED s1_0z_fir_24z[S1_WORDS] = {
-//   0xFFFFFF7D, 0xD06D5430, 0xA1190693, 0x8AA454AE, 0xD8811B75, 0x2A2551C9, 0x6098850C, 0x2AB60BBE, 
-//   0xFFFFFF52, 0x72ADF529, 0xBCA02DA1, 0x950F6C91, 0x36246C89, 0x36F0A985, 0xB4053D94, 0xAFB54E4A, 
-//   0xFFFFFF7F, 0x6B235934, 0xBDD54318, 0x158A6E0C, 0xF700EF30, 0x7651A818, 0xC2ABBD2C, 0x9AC4D6FE, 
-//   0xFFFFFFF5, 0x468CF73A, 0xCBBF0FAD, 0xBD379372, 0x1400284E, 0xC9ECBDB5, 0xF0FDD35C, 0xEF3162AF, 
-//   0xFFFFFFD9, 0xCD542B3D, 0x5FE2ABBE, 0x7CA84B2D, 0xFAE75FB4, 0xD2153E7D, 0xD547FABC, 0xD42AB39B, 
-//   0xFFFFFF9E, 0x6113EEA7, 0x69BEF9EC, 0xC8F5CAF0, 0x4F24F20F, 0x53AF1337, 0x9F7D96E5, 0x77C88679, 
-//   0xFFFFFF4A, 0xDE4FE47D, 0x8C0D7254, 0xB78902D6, 0xB8001D6B, 0x4091ED2A, 0x4EB031BE, 0x27F27B52, 
-//   0xFFFFFFC6, 0x3F954816, 0x0E8BA975, 0x4877D27F, 0x1D42B8FE, 0x4BEE12AE, 0x95D17068, 0x12A9FC63, 
-//   0xFFFFFFC1, 0xFFE6700D, 0x5A7298DB, 0x7AAEFBBA, 0xA7E7E55D, 0xDF755EDB, 0x194E5AB0, 0x0E67FF83, 
-//   0xFFFFFFC0, 0x00078003, 0x39FCD29F, 0x2CCA1483, 0x3DC3BCC1, 0x285334F9, 0x4B3F9CC0, 0x01E00003, 
-//   0xFFFFFFC0, 0x0007FFFF, 0x07FF1CE0, 0xE5A61A7C, 0x3C813C3E, 0x5865A707, 0x38FFE0FF, 0xFFE00003, 
-//   0xFFFFFFC0, 0x0007FFFF, 0x00001F00, 0x1C61E355, 0x690096AA, 0xC7863800, 0xF80000FF, 0xFFE00003, 
-//   0xFFFFFFC0, 0x0007FFFF, 0x00001FFF, 0xFC1FFC66, 0x4E007266, 0x3FF83FFF, 0xF80000FF, 0xFFE00003, 
-//   0xFFFFFFC0, 0x0007FFFF, 0x00001FFF, 0xFC000078, 0x70000E1E, 0x00003FFF, 0xF80000FF, 0xFFE00003, 
-//   0xFFFFFFC0, 0x0007FFFF, 0x00001FFF, 0xFC00007F, 0x800001FE, 0x00003FFF, 0xF80000FF, 0xFFE00003, 
-//   0x0000003F, 0xFFF80000, 0xFFFFE000, 0x03FFFF80, 0x00000001, 0xFFFFC000, 0x07FFFF00, 0x001FFFFC,
-// };
-
-
-// // taps=65, fc=85kHz, window=("kaiser", 5.9), a_stop=-52dB
-// static const int32_t WORD_ALIGNED s2_fir[S2_TAP_COUNT] = 
-// {
-//   0x12a13c, -0x24cb4b, -0x439946, 0x2a7823, 0x99af00, 0xdd16, -0x107029c, -0x815bef, 
-//   0x161c1b0, 0x16dd8b5, -0x1644168, -0x2badea5, 0xba673f, 0x429b52e, 0xe412a6, -0x5453ea5, 
-//   -0x39655c5, 0x5744062, 0x76c9081, -0x361a623, -0xae3da09, -0xc327bd, 0xd187827, 0x6bcc287, 
-//   -0xd03bf95, -0xd9b98bb, 0xa84aa46, 0x14e8c557, -0x69de52d, -0x1fd398d0, 0x31c4ce4, 0x54567115, 
-//   0x7fffffff, 0x54567115, 0x31c4ce4, -0x1fd398d0, -0x69de52d, 0x14e8c557, 0xa84aa46, -0xd9b98bb, 
-//   -0xd03bf95, 0x6bcc287, 0xd187827, -0xc327bd, -0xae3da09, -0x361a623, 0x76c9081, 0x5744062, 
-//   -0x39655c5, -0x5453ea5, 0xe412a6, 0x429b52e, 0xba673f, -0x2badea5, -0x1644168, 0x16dd8b5, 
-//   0x161c1b0, -0x815bef, -0x107029c, 0xdd16, 0x99af00, 0x2a7823, -0x439946, -0x24cb4b, 0x12a13c,
-// };
-
-// const right_shift_t s2_shr = 2;
-
-
-namespace  mic_array{
-
-/**
- * @brief One Stage Decimator
- * 
- * This class template represents a one stage decimator which converts a stream
- * of PDM samples to a 1/16th sample rate stream of PCM samples.
- * 
- * Concrete implementations of this class template are meant to be used as the
- * `TDecimator` template parameter in the @ref MicArray class template.
- * 
- * @tparam MIC_COUNT      Number of microphone channels.
- */
-template <unsigned MIC_COUNT>
-class OneStageDecimator192 
+namespace mic_array
 {
 
-  public:
   /**
+   * @brief One Stage Decimator
+   *
+   * This class template represents a one stage decimator which converts a stream
+   * of PDM samples to a 1/16th sample rate stream of PCM samples.
+   *
+   * Concrete implementations of this class template are meant to be used as the
+   * `TDecimator` template parameter in the @ref MicArray class template.
+   *
+   * @tparam MIC_COUNT      Number of microphone channels.
+   */
+  template <unsigned MIC_COUNT>
+  class OneStageDecimator192
+  {
+
+  public:
+    /**
      * Number of microphone channels.
      */
     static constexpr unsigned MicCount = MIC_COUNT;
 
   private:
-
     /**
      * Stage 1 decimator configuration and state.
      */
-    struct {
+    struct
+    {
       /**
        * Pointer to alternating filter coefficients for Stage 1
        */
-      const uint32_t* filter_coef[2];
+      const uint32_t *filter_coef[2];
       /**
        * Filter state (PDM history) for stage 1 filters.
        */
       uint32_t pdm_history[MIC_COUNT][8]
 #ifndef __DOXYGEN__ // doxygen breaks if it encounters this.
-      // Must be initialized in this way. Initializing the history values in the
-      // constructor causes an XCore-specific problem. Specifically, if the
-      // MicArray instance where this decimator is used is declared outside of a
-      // function scope (that is, as a global- or module-scope object; which it
-      // ordinarily will be), initializing the PDM history within the
-      // constructor forces the compiler to allocate the object on _all tiles_.
-      // Being allocated on a tile where it is not used does not by itself break
-      // anything, but it does result in less memory being available for other
-      // things on that tile. Initializing the history in this way prevents
-      // that.
-         = {[0 ... (MIC_COUNT-1)] = { [0 ... 7] = 0x55555555 } }
+                    // Must be initialized in this way. Initializing the history values in the
+                    // constructor causes an XCore-specific problem. Specifically, if the
+                    // MicArray instance where this decimator is used is declared outside of a
+                    // function scope (that is, as a global- or module-scope object; which it
+                    // ordinarily will be), initializing the PDM history within the
+                    // constructor forces the compiler to allocate the object on _all tiles_.
+                    // Being allocated on a tile where it is not used does not by itself break
+                    // anything, but it does result in less memory being available for other
+                    // things on that tile. Initializing the history in this way prevents
+                    // that.
+          = {[0 ...(MIC_COUNT - 1)] = {[0 ... 7] = 0x55555555}}
 #endif
-       ;
+      ;
     } stage1;
 
   public:
-
-    constexpr OneStageDecimator192() noexcept { }
+    constexpr OneStageDecimator192() noexcept {}
 
     /**
      * @brief Initialize the decimator.
-     * 
-     * Sets the stage 1 filter coefficients. The decimator must be 
+     *
+     * Sets the stage 1 filter coefficients. The decimator must be
      * initialized before any calls to `ProcessBlock()`.
-     * 
+     *
      */
     void Init();
 
     /**
      * @brief Process one block of PDM data.
-     * 
-     * Processes a block of PDM data to produce two output sample from the 
+     *
+     * Processes a block of PDM data to produce two output sample from the
      * first stage decimator.
-     * 
-     * One `pdm_block` (32bit) contains enough PDM samples to produce two output 
+     *
+     * One `pdm_block` (32bit) contains enough PDM samples to produce two output
      * samples from the first stage decimator. (32 / 16 = 2)
-     * 
+     *
      * Two output samples from the first stage decimator are computed and
      * written to `sample_out[2][]`.
-     * 
+     *
      * @param sample_out  Output sample vector.
      * @param pdm_block   PDM data to be processed.
      */
@@ -294,59 +157,27 @@ class OneStageDecimator192
         uint32_t pdm_block[MIC_COUNT]);
   };
 
-  
 }
 
 //////////////////////////////////////////////
 // Template function implementations below. //
 //////////////////////////////////////////////
 
-
 template <unsigned MIC_COUNT>
-void mic_array::OneStageDecimator192<MIC_COUNT>::Init() 
-{      
+void mic_array::OneStageDecimator192<MIC_COUNT>::Init()
+{
   this->stage1.filter_coef[0] = s1_fir_zero_after;
   this->stage1.filter_coef[1] = s1_fir_zero_before;
 }
 
-
-// template <unsigned MIC_COUNT>
-// void mic_array::TwoStageDecimator192<MIC_COUNT>::ProcessBlock(
-//         int32_t sample_out[2][MIC_COUNT],
-//         uint32_t pdm_block[MIC_COUNT])
-// {
-//   int32_t tmp;
-//   for(size_t mic = 0; mic < 2; mic++){
-//     uint32_t* hist = &this->stage1.pdm_history[mic][0];
-
-//     // Add new PDM sample to history
-//     hist[0] = pdm_block[mic];
-
-//     // First sample
-//     tmp = (fir_1x16_bit(hist, s1_0z_fir_24z) << 3);
-//     filter_fir_s32_add_sample(&this->stage2.filters[mic], tmp);
-//     tmp = (fir_1x16_bit(hist, s1_8z_fir_16z) << 3);
-//     sample_out[0][mic] = filter_fir_s32(&this->stage2.filters[mic], tmp);
-
-//     // Second sample
-//     tmp = (fir_1x16_bit(hist, s1_16z_fir_8z) << 3);
-//     filter_fir_s32_add_sample(&this->stage2.filters[mic], tmp);
-//     tmp = (fir_1x16_bit(hist, s1_24z_fir_0z) << 3);
-//     sample_out[1][mic] = filter_fir_s32(&this->stage2.filters[mic], tmp);
-
-//     // Shift history
-//     shift_buffer(hist);
-//   }
-// }
-
-
 template <unsigned MIC_COUNT>
 void mic_array::OneStageDecimator192<MIC_COUNT>::ProcessBlock(
-        int32_t sample_out[2][MIC_COUNT],
-        uint32_t pdm_block[MIC_COUNT])
+    int32_t sample_out[2][MIC_COUNT],
+    uint32_t pdm_block[MIC_COUNT])
 {
-  for(size_t mic = 0; mic < MIC_COUNT; mic++){
-    uint32_t* hist = &this->stage1.pdm_history[mic][0];
+  for (size_t mic = 0; mic < MIC_COUNT; mic++)
+  {
+    uint32_t *hist = &this->stage1.pdm_history[mic][0];
 
     hist[0] = pdm_block[mic];
     sample_out[0][mic] = (fir_1x16_bit(hist, this->stage1.filter_coef[0]) << 3);
