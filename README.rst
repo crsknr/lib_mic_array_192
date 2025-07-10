@@ -71,7 +71,7 @@ Development repo
   * This repository (lib_mic_array_192)
 
 **Original XMOS Repository:**  
-  * ``lib_mic_array <https://www.github.com/xmos/lib_mic_array>``
+  * ``lib_mic_array`` <https://www.github.com/xmos/lib_mic_array>
 
 ******************
 Attribution & License
