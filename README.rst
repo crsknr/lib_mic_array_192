@@ -21,13 +21,13 @@ This is a modified version of the XMOS microphone array library, extended to sup
 The original XMOS microphone array library is designed to allow interfacing to PDM microphones coupled with efficient decimation to user configurable output sample rates.
 
 **Modifications by Christoph Kiener:**
-- Added 192kHz output sample rate support
-- Implemented OneStageDecimator192 class for 16x decimation (3.072 MHz PDM → 192 kHz)
-- Custom filter coefficients optimized for 192kHz operation
+  - Added 192kHz output sample rate support
+  - Implemented OneStageDecimator192 class for 16x decimation (3.072 MHz PDM → 192 kHz)
+  - Custom filter coefficients optimized for 192kHz operation
 
 **Original XMOS Library:**
-Based on lib_mic_array v5.5.0 from XMOS Limited.
-Original repository: https://github.com/xmos/lib_mic_array
+  - Based on lib_mic_array v5.5.0 from XMOS Limited.
+  - Original repository: https://github.com/xmos/lib_mic_array
 
 This library is only available for XS3 devices due to requiring the XS3 vector unit.
 
