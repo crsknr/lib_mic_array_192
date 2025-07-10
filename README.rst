@@ -51,9 +51,9 @@ The microphone array library has the following features:
 
 **Additional 192kHz Features:**
   - 192 kHz output sample rate support (3.072 MHz PDM clock with 16x decimation)
-  - OneStageDecimator192 implementation for optimized 192kHz processing (`lib_mic_array_192/api/mic_array/cpp/Decimator192.hpp`)
+  - OneStageDecimator192 implementation for optimized 192kHz processing (``lib_mic_array_192/api/mic_array/cpp/Decimator192.hpp``)
   - Custom Kaiser window filter coefficients (240 taps, fc=80kHz, a_stop=-44dB)
-  - Add division parameter to `mic_array_pdm_clock_start` to allow for starting up MEMS mics with a lower PDM clock
+  - Add division parameter to ``mic_array_pdm_clock_start`` to allow for starting up MEMS mics with a lower PDM clock
 
 ************
 Known issues
@@ -71,7 +71,7 @@ Development repo
   * This repository (lib_mic_array_192)
 
 **Original XMOS Repository:**  
-  * `lib_mic_array <https://www.github.com/xmos/lib_mic_array>`_
+  * ``lib_mic_array <https://www.github.com/xmos/lib_mic_array>``
 
 ******************
 Attribution & License
